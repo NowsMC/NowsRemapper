@@ -4,6 +4,7 @@ import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.commons.ClassRemapper;
 import org.objectweb.asm.commons.Remapper;
+import org.objectweb.asm.Type;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -266,13 +267,54 @@ public final class MinecraftJarRemapper {
         }
 
         private String mapField(String owner, String name, String descriptor) {
-            String mapped = findMemberName(owner, name, descriptor, fields, new HashSet<String>());
+            String mapped = findMemberName(runtimeClass(owner), name, runtimeDescriptor(descriptor), fields, new HashSet<String>());
             return mapped == null ? name : mapped;
         }
 
         private String mapMethod(String owner, String name, String descriptor) {
-            String mapped = findMemberName(owner, name, descriptor, methods, new HashSet<String>());
+            String mapped = findMemberName(runtimeClass(owner), name, runtimeDescriptor(descriptor), methods, new HashSet<String>());
             return mapped == null ? name : mapped;
+        }
+
+        private String runtimeClass(String internalName) {
+            String runtime = namedToRuntimeClasses.get(internalName);
+            return runtime == null ? internalName : runtime;
+        }
+
+        private String runtimeDescriptor(String descriptor) {
+            if (descriptor == null || descriptor.isEmpty()) {
+                return descriptor;
+            }
+            if (descriptor.charAt(0) == '(') {
+                Type method = Type.getMethodType(descriptor);
+                Type[] arguments = method.getArgumentTypes();
+                Type[] mappedArguments = new Type[arguments.length];
+                for (int i = 0; i < arguments.length; i++) {
+                    mappedArguments[i] = runtimeType(arguments[i]);
+                }
+                return Type.getMethodDescriptor(runtimeType(method.getReturnType()), mappedArguments);
+            }
+            return runtimeType(Type.getType(descriptor)).getDescriptor();
+        }
+
+        private Type runtimeType(Type type) {
+            if (type.getSort() == Type.ARRAY) {
+                Type element = runtimeType(type.getElementType());
+                if (element.equals(type.getElementType())) {
+                    return type;
+                }
+                StringBuilder descriptor = new StringBuilder();
+                for (int i = 0; i < type.getDimensions(); i++) {
+                    descriptor.append('[');
+                }
+                descriptor.append(element.getDescriptor());
+                return Type.getType(descriptor.toString());
+            }
+            if (type.getSort() != Type.OBJECT) {
+                return type;
+            }
+            String runtimeName = namedToRuntimeClasses.get(type.getInternalName());
+            return runtimeName == null ? type : Type.getObjectType(runtimeName);
         }
 
         private String findMemberName(
