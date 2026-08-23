@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package space.nows.mcnows.remap;
+package space.nows.remap;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

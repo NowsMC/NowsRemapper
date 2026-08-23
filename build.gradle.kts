@@ -1,6 +1,6 @@
 plugins { `java-library` }
 
-group = "space.nows.mcnows"
+group = "space.nows"
 version = providers.gradleProperty("nows_version").orElse("development").get()
 
 base {

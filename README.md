@@ -12,7 +12,7 @@ JARs are local install or local development outputs only.
 The artifact is published as:
 
 ```text
-space.nows.mcnows:nows-remapper:<nows-version>
+space.nows:nows-remapper:<nows-version>
 ```
 
 Nows source is licensed under Apache License 2.0. Minecraft client artifacts and

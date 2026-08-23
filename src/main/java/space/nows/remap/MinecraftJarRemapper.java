@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package space.nows.mcnows.remap;
+package space.nows.remap;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
