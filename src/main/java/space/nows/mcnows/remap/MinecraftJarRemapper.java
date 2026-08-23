@@ -14,6 +14,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -27,6 +29,30 @@ import java.util.jar.JarOutputStream;
 
 public final class MinecraftJarRemapper {
     private MinecraftJarRemapper() {}
+
+    public static String implementationFingerprint() throws IOException {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            for (String className : Arrays.asList(
+                    MinecraftJarRemapper.class.getName(),
+                    MemberKey.class.getName(),
+                    NowsMappings.class.getName(),
+                    NowsRemapper.class.getName())) {
+                String resource = className.replace('.', '/') + ".class";
+                try (InputStream input = MinecraftJarRemapper.class.getClassLoader().getResourceAsStream(resource)) {
+                    if (input == null) {
+                        throw new IOException("Missing remapper class resource: " + resource);
+                    }
+                    digest.update(resource.getBytes(StandardCharsets.UTF_8));
+                    digest.update((byte) 0);
+                    digest.update(readAllBytes(input));
+                }
+            }
+            return toHex(digest.digest());
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new AssertionError(e);
+        }
+    }
 
     public static boolean containsNamedMinecraft(Path jar) throws IOException {
         try (JarFile file = new JarFile(jar.toFile())) {
@@ -108,6 +134,17 @@ public final class MinecraftJarRemapper {
             }
             return output.toByteArray();
         }
+    }
+
+    private static String toHex(byte[] bytes) {
+        char[] out = new char[bytes.length * 2];
+        char[] hex = "0123456789abcdef".toCharArray();
+        for (int i = 0; i < bytes.length; i++) {
+            int value = bytes[i] & 0xff;
+            out[i * 2] = hex[value >>> 4];
+            out[i * 2 + 1] = hex[value & 0x0f];
+        }
+        return new String(out);
     }
 
     private static final class MemberKey {
