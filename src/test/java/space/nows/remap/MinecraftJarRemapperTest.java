@@ -29,9 +29,27 @@ import java.nio.file.Path;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class MinecraftJarRemapperTest implements Opcodes {
+    @Test
+    void keepsExistingOutputWhenRemapCannotStart(@TempDir Path temp) throws Exception {
+        Path input = temp.resolve("input.jar");
+        Path missingMappings = temp.resolve("missing_mappings.txt");
+        Path output = temp.resolve("output.jar");
+        byte[] existing = "still-valid".getBytes(StandardCharsets.UTF_8);
+
+        try (JarOutputStream jar = new JarOutputStream(Files.newOutputStream(input))) {
+            writeClass(jar, "runtime/Example", minimalClassBytes("runtime/Example", "java/lang/Object", null));
+        }
+        Files.write(output, existing);
+
+        assertThrows(Exception.class, () -> MinecraftJarRemapper.remapOfficial(input, missingMappings, output));
+        assertArrayEquals(existing, Files.readAllBytes(output));
+    }
+
     @Test
     void remapsInheritedStaticCallSitesWhenOwnerBecomesNamed(@TempDir Path temp) throws Exception {
         Path input = temp.resolve("input.jar");
@@ -64,16 +82,7 @@ class MinecraftJarRemapperTest implements Opcodes {
     }
 
     private static byte[] superClassBytes() {
-        ClassWriter writer = new ClassWriter(0);
-        writer.visit(V1_8, ACC_PUBLIC | ACC_SUPER, "runtime/superpkg/SuperClass", null, "java/lang/Object", null);
-
-        MethodVisitor constructor = writer.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
-        constructor.visitCode();
-        constructor.visitVarInsn(ALOAD, 0);
-        constructor.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
-        constructor.visitInsn(RETURN);
-        constructor.visitMaxs(1, 1);
-        constructor.visitEnd();
+        ClassWriter writer = minimalClassBytesWriter("runtime/superpkg/SuperClass", "java/lang/Object", null);
 
         MethodVisitor method = writer.visitMethod(ACC_PUBLIC | ACC_STATIC, "a", "()Ljava/lang/String;", null, null);
         method.visitCode();
@@ -87,16 +96,7 @@ class MinecraftJarRemapperTest implements Opcodes {
     }
 
     private static byte[] subClassBytes() {
-        ClassWriter writer = new ClassWriter(0);
-        writer.visit(V1_8, ACC_PUBLIC | ACC_SUPER, "runtime/subpkg/SubClass", null, "runtime/superpkg/SuperClass", null);
-
-        MethodVisitor constructor = writer.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
-        constructor.visitCode();
-        constructor.visitVarInsn(ALOAD, 0);
-        constructor.visitMethodInsn(INVOKESPECIAL, "runtime/superpkg/SuperClass", "<init>", "()V", false);
-        constructor.visitInsn(RETURN);
-        constructor.visitMaxs(1, 1);
-        constructor.visitEnd();
+        ClassWriter writer = minimalClassBytesWriter("runtime/subpkg/SubClass", "runtime/superpkg/SuperClass", null);
 
         MethodVisitor method = writer.visitMethod(ACC_PUBLIC | ACC_STATIC, "b", "()Ljava/lang/String;", null, null);
         method.visitCode();
@@ -107,5 +107,25 @@ class MinecraftJarRemapperTest implements Opcodes {
 
         writer.visitEnd();
         return writer.toByteArray();
+    }
+
+    private static byte[] minimalClassBytes(String name, String superName, String[] interfaces) {
+        ClassWriter writer = minimalClassBytesWriter(name, superName, interfaces);
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
+    private static ClassWriter minimalClassBytesWriter(String name, String superName, String[] interfaces) {
+        ClassWriter writer = new ClassWriter(0);
+        writer.visit(V1_8, ACC_PUBLIC | ACC_SUPER, name, null, superName, interfaces);
+
+        MethodVisitor constructor = writer.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
+        constructor.visitCode();
+        constructor.visitVarInsn(ALOAD, 0);
+        constructor.visitMethodInsn(INVOKESPECIAL, superName, "<init>", "()V", false);
+        constructor.visitInsn(RETURN);
+        constructor.visitMaxs(1, 1);
+        constructor.visitEnd();
+        return writer;
     }
 }

@@ -78,7 +78,6 @@ public final class MinecraftJarRemapper {
     }
 
     public static void remapOfficial(Path input, Path proguardMappings, Path output) throws Exception {
-        Files.deleteIfExists(output);
         Files.createDirectories(output.getParent());
         NowsMappings mappings = NowsMappings.read(proguardMappings);
         mappings.readInheritance(input);
